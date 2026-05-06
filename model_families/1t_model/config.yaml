@@ -1,0 +1,21 @@
+model:
+  class: MythosTransformer
+  target_total_parameters: 1000000000000
+  target_active_parameters: 150000000000
+  vocab_size: 256000
+  context_size: 8192
+  hidden_dim: 8192
+  num_layers: 96
+  num_heads: 64
+  use_moe: true
+  use_memory: true
+  use_adaptive_reasoning: true
+
+training:
+  status: specification_only
+  precision: bf16
+  tensor_parallel_size: 8
+  pipeline_parallel_size: 8
+  data_parallel_size: 8
+  min_gpu_class: H100_80GB
+  notes: Do not train until local model has repeatable benchmark wins and measured local-to-scale evidence.

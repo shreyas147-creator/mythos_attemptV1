@@ -1,0 +1,4 @@
+# Minimal local training dependencies.
+# Use requirements.txt only for the production-scale/distributed path.
+
+torch>=2.3.0

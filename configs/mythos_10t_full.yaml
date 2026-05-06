@@ -1,0 +1,279 @@
+# Mythos Transformer: Full 10T Configuration
+# Expected performance: 95% gap closure vs Mythos 5
+# Hardware: 512-1024 H100 GPUs, 60-90 days training
+
+model:
+  type: "MythosTransformer"
+  vocab_size: 256000
+  hidden_dim: 16384
+  num_layers: 128
+  num_heads: 128
+  head_dim: 128
+  max_seq_len: 8192
+  intermediate_size: 65536  # 4x hidden_dim
+  dropout: 0.1
+  
+  # Component flags
+  use_moe: true
+  use_reasoning: true
+  use_memory: true
+  use_planning: true
+  use_domain_networks: true
+
+# Hierarchical MoE Configuration
+moe:
+  num_macro_experts: 16
+  num_micro_experts: 128
+  num_nano_experts: 512
+  expert_capacity_factor: 1.25
+  routing_top_k: 4
+  expert_dropout: 0.1
+  load_balance_loss_weight: 0.01
+
+# Adaptive Reasoning Configuration
+reasoning:
+  max_depth: 128
+  confidence_threshold_easy: 0.85
+  confidence_threshold_hard: 0.5
+  beam_width: 16
+  num_reasoning_layers: 32
+  value_network_weight: 0.1
+
+# Long-Range Memory Configuration
+memory:
+  l1_max_tokens: 32768      # Full attention
+  l2_max_tokens: 262144     # 256K, 8:1 compression
+  l3_max_tokens: 2097152    # 2M, 64:1 compression
+  l4_max_tokens: 16777216   # 16M, 512:1 compression
+  surprise_threshold: 0.5
+  num_codebook_vectors: 8192
+  compression_loss_weight: 0.01
+
+# Training Configuration
+training:
+  # Global batch size (across all GPUs)
+  batch_size: 2048
+  micro_batch_size: 1  # Per GPU
+  gradient_accumulation_steps: 2
+  
+  # Sequence length
+  seq_length: 8192
+  
+  # Optimization
+  learning_rate: 1.2e-4
+  min_learning_rate: 1.2e-5
+  lr_scheduler: "cosine"
+  warmup_steps: 2000
+  total_steps: 500000
+  
+  # Optimizer
+  optimizer: "adamw"
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_epsilon: 1.0e-8
+  weight_decay: 0.1
+  
+  # Gradient clipping
+  gradient_clipping: 1.0
+  
+  # Mixed precision
+  precision: "bf16"  # BF16 for stability
+  use_fp8: true      # FP8 for compute efficiency
+  
+  # Curriculum learning
+  use_curriculum: true
+  curriculum_stages:
+    - name: "warmup"
+      steps: 10000
+      seq_length: 2048
+      difficulty: "easy"
+    - name: "ramp_up"
+      steps: 50000
+      seq_length: 4096
+      difficulty: "medium"
+    - name: "full"
+      steps: 440000
+      seq_length: 8192
+      difficulty: "hard"
+
+# Data Configuration
+data:
+  data_path: "/mnt/data/mythos_training"
+  
+  # Data mixture
+  mixture:
+    code: 0.35          # 5.25T tokens
+    mathematics: 0.15   # 2.25T tokens
+    science: 0.20       # 3T tokens
+    general_text: 0.25  # 3.75T tokens
+    reasoning: 0.05     # 750B tokens
+  
+  # Code breakdown
+  code_mixture:
+    python: 0.40
+    javascript: 0.20
+    java: 0.15
+    cpp: 0.15
+    other: 0.10
+  
+  # Data quality
+  min_quality_score: 0.7
+  deduplication: true
+  apply_filters: true
+  
+  # Tokenization
+  tokenizer: "domain_aware"  # Domain-specific tokenization
+  
+  # Data loading
+  num_workers: 16
+  prefetch_factor: 4
+  pin_memory: true
+
+# Distributed Training Configuration
+distributed:
+  # 3D Parallelism
+  tensor_parallel_size: 8      # Tensor parallelism
+  pipeline_parallel_size: 16   # Pipeline parallelism
+  data_parallel_size: 8        # Data parallelism
+  
+  # Total GPUs = TP * PP * DP = 8 * 16 * 8 = 1024 GPUs
+  
+  # ZeRO Configuration
+  zero_stage: 3
+  zero_optimization:
+    stage: 3
+    offload_optimizer:
+      device: "cpu"
+      pin_memory: true
+    offload_param:
+      device: "cpu"
+      pin_memory: true
+    overlap_comm: true
+    contiguous_gradients: true
+    reduce_bucket_size: 2e8
+    stage3_prefetch_bucket_size: 2e8
+    stage3_param_persistence_threshold: 1e5
+    gather_16bit_weights_on_model_save: true
+  
+  # Communication
+  communication_data_type: "fp16"
+  gradient_compression: "powersgd"  # PowerSGD for gradient compression
+  
+  # Pipeline scheduling
+  pipeline_schedule: "1f1b"  # Interleaved 1F1B
+  
+  # Activation checkpointing
+  activation_checkpointing: true
+  checkpoint_num_layers: 1  # Checkpoint every layer
+
+# Checkpointing Configuration
+checkpointing:
+  save_interval: 1000  # Save every 1000 steps
+  save_dir: "/mnt/checkpoints/mythos-10t"
+  keep_last_n: 10
+  save_optimizer_state: true
+  async_save: true  # Non-blocking checkpoint saves
+  
+# Logging Configuration
+logging:
+  log_interval: 10  # Log every 10 steps
+  eval_interval: 500  # Evaluate every 500 steps
+  
+  # WandB
+  use_wandb: true
+  wandb_project: "mythos-transformer"
+  wandb_entity: "your-org"
+  wandb_name: "mythos-10t-full"
+  
+  # TensorBoard
+  use_tensorboard: true
+  tensorboard_dir: "/mnt/logs/tensorboard"
+  
+  # Metrics to track
+  track_metrics:
+    - "train/loss"
+    - "train/moe_loss"
+    - "train/reasoning_depth"
+    - "train/memory_compression"
+    - "train/expert_utilization"
+    - "train/gradient_norm"
+    - "train/learning_rate"
+    - "eval/loss"
+    - "eval/perplexity"
+    - "system/tokens_per_sec"
+    - "system/gpu_memory"
+
+# Evaluation Configuration
+evaluation:
+  eval_batch_size: 16
+  eval_steps: 100
+  
+  # Benchmarks
+  run_benchmarks: true
+  benchmark_interval: 5000  # Run benchmarks every 5000 steps
+  benchmarks:
+    - "swe_bench_verified"
+    - "graphwalks_bfs"
+    - "humanitys_last_exam"
+    - "gpqa_diamond"
+    - "cybersec_ctf"
+    - "terminal_bench"
+  
+  # Validation sets
+  validation_sets:
+    - name: "code"
+      path: "/mnt/data/validation/code"
+      weight: 0.35
+    - name: "math"
+      path: "/mnt/data/validation/math"
+      weight: 0.15
+    - name: "reasoning"
+      path: "/mnt/data/validation/reasoning"
+      weight: 0.05
+
+# Hardware Configuration
+hardware:
+  gpu_type: "H100"
+  num_gpus: 1024
+  gpu_memory_gb: 80
+  cpu_cores: 256
+  system_memory_tb: 16
+  storage_pb: 2
+  
+  # Networking
+  interconnect: "infiniband"  # or "nvlink"
+  bandwidth_gbps: 3200
+
+# Performance Optimization
+optimization:
+  # Kernel fusion
+  use_fused_kernels: true
+  use_flash_attention: true  # Flash Attention 2
+  
+  # Compilation
+  compile_model: true
+  compile_mode: "max-autotune"
+  
+  # Memory optimization
+  gradient_checkpointing: true
+  cpu_offload: true
+  
+  # Async operations
+  async_grad_reduce: true
+  async_checkpoint: true
+
+# Expected Performance Metrics
+expected:
+  tokens_per_sec_per_gpu: 500
+  total_tokens_per_sec: 512000  # 1024 GPUs * 500
+  time_to_15t_tokens_days: 67
+  estimated_cost_usd: 45000000  # AWS p5.48xlarge
+  
+  # Target benchmarks (after training)
+  target_benchmarks:
+    swe_bench_verified: 89.2  # vs 93.9 Mythos
+    graphwalks_bfs: 71.4      # vs 80.0 Mythos
+    humanitys_last_exam: 61.2 # vs 64.7 Mythos
+    gpqa_diamond: 93.1        # vs 94.6 Mythos
+    cybersec_ctf: 87.3        # vs 100.0 Mythos
+    usamo: 94.8               # vs 97.6 Mythos

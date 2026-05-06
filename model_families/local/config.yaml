@@ -1,0 +1,27 @@
+seed: 7
+
+model:
+  vocab_size: 256
+  context_size: 256
+  hidden_dim: 384
+  num_layers: 4
+  num_heads: 6
+  dropout: 0.1
+  mlp_multiplier: 4
+
+data:
+  data_path: null
+  allow_sample_fallback: true
+  validation_fraction: 0.1
+  num_workers: 0
+
+training:
+  device: auto
+  batch_size: 8
+  total_steps: 200
+  learning_rate: 0.0003
+  weight_decay: 0.01
+  grad_clip: 1.0
+  eval_interval: 50
+  save_interval: 100
+  output_dir: model_families/local/runs
